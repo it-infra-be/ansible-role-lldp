@@ -1,9 +1,9 @@
 ---
 galaxy_info:
-  role_name: <ROLE>
+  role_name: lldp
   namespace: it_infra_be
   author: Karon Pante <karon.pante@it-infra.be>
-  description: <ROLE_DESCRIPTION>
+  description: Install and configure LLDP
   company: IT Infra
   license: MIT
   min_ansible_version: '2.15'
@@ -11,7 +11,9 @@ galaxy_info:
     - name: EL
       versions:
         - '9'
-  galaxy_tags: []
+  galaxy_tags:
+    - lldp
+    - lldpad
 
 # Dependencies will be executed before the task roles
 dependencies: []

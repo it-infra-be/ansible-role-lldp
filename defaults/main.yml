@@ -1,2 +1,26 @@
 ---
+# LLDP Admin Status for interfaces
+lldp_admin_status: rxtx
+
+# TLVs to enable on interfaces
+lldp_enabled_tlvs:
+  - chassisID
+  - portID
+  - TTL
+  - portDesc
+  - sysName
+  - sysDesc
+  - sysCap
+  - macPhyCfg
+  - linkAgg
+  - MTU
+
+# TLVs to disable on interfaces where TLVs were enabled
+lldp_disabled_tlvs: []
+
+# TLV Management address
+lldp_mgmt_addr_ipv4: '{{ ansible_default_ipv4.address }}'
+
+# Reset complete LLDP configuration
+lldp_reset: false
 ...

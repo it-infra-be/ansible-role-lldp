@@ -1,2 +1,92 @@
 ---
+# Install and start LLDPAD
+- name: Install lldpd
+  ansible.builtin.dnf:
+    name: lldpd
+    state: present
+
+- name: Enable and start lldpad service
+  ansible.builtin.systemd_service:
+    name: lldpad
+    enabled: true
+    state: started
+
+# Reset LLDPAD
+- name: Remove configuration file (reset)
+  ansible.builtin.file:
+    path: /var/lib/lldpad/lldpad.conf
+    state: absent
+  when: lldp_reset
+
+- name: Restart lldpad service
+  ansible.builtin.systemd_service:
+    name: lldpad
+    enabled: true
+    state: restarted
+  when: lldp_reset
+
+# Configure interfaces
+- name: Get current interface LLDP configuration
+  ansible.builtin.command:
+    cmd: lldptool get-lldp -i {{ item }} -c adminStatus
+  loop: '{{ lldp_interfaces }}'
+  register: __lldp_current_interface_status
+  changed_when: false
+
+- name: Configure LLDP on interfaces (when needed)
+  ansible.builtin.command: # noqa: no-changed-when
+    cmd: lldptool set-lldp -i {{ item }} adminStatus={{ lldp_admin_status }}
+  loop: "{{ __lldp_current_interface_status.results | selectattr('stdout', '!=', 'adminStatus=' + lldp_admin_status) | map(attribute='item') }}"
+  register: __lldp_interfaces_conf
+
+- name: Pause for 5 seconds when interfaces were configured
+  ansible.builtin.pause: # noqa: no-handler
+    seconds: 5
+  when: __lldp_interfaces_conf.changed
+
+# Enable TLVs on interfaces
+- name: Get current enabled TLVs configuration
+  ansible.builtin.command:
+    cmd: lldptool get-tlv -i {{ item.0 }} -V {{ item.1 }}
+  loop: '{{ lldp_interfaces | product(lldp_enabled_tlvs) | list }}'
+  register: __lldp_current_enabled_tlvs_conf
+  changed_when: false
+
+- name: Enable TLVs on interfaces (when needed)
+  ansible.builtin.command: # noqa: no-changed-when
+    cmd: lldptool set-tlv -i {{ item.0 }} -V {{ item.1 }} enableTx=yes
+  loop: "{{ __lldp_current_enabled_tlvs_conf.results | selectattr('stdout', '==', '') | map(attribute='item') }}"
+
+# Disable TLVs on interfaces
+- name: Get current disabled TLVs configuration
+  ansible.builtin.command:
+    cmd: lldptool get-tlv -i {{ item.0 }} -V {{ item.1 }}
+  loop: '{{ lldp_interfaces | product(lldp_disabled_tlvs) | list }}'
+  register: __lldp_current_disabled_tlvs_conf
+  changed_when: false
+
+- name: Disable TLVs on interfaces (when needed)
+  ansible.builtin.command: # noqa: no-changed-when
+    cmd: lldptool set-tlv -i {{ item.0 }} -V {{ item.1 }} enableTx=no
+  loop: "{{ __lldp_current_disabled_tlvs_conf.results | selectattr('stdout', '!=', '') | map(attribute='item') }}"
+
+# Configure Management Address (8/mgnAddr) TLV
+- name: Get current Management Address TLV (8) configuration
+  ansible.builtin.command:
+    cmd: lldptool get-tlv -i {{ item }} -V mngAddr
+  loop: '{{ lldp_interfaces }}'
+  register: __lldp_current_mgn_addr_tlv
+  changed_when: false
+
+- name: Configure Management Address TLV (8) on interfaces (when needed)
+  ansible.builtin.command: # noqa: no-changed-when
+    cmd: lldptool set-tlv -i {{ item }} -V mngAddr ipv4={{ lldp_mgmt_addr_ipv4 }} enableTx=yes
+  loop: "{{ __lldp_current_mgn_addr_tlv.results | rejectattr('stdout', 'search', lldp_mgmt_addr_ipv4) | map(attribute='item') }}"
+  when: lldp_mgmt_addr_ipv4 | length > 0
+
+- name: Remove Management Address TLV (8) on interfaces (when needed)
+  ansible.builtin.command: # noqa: no-changed-when
+    cmd: lldptool set-tlv -i {{ item }} -V mngAddr ipv4={{ lldp_mgmt_addr_ipv4 }} enableTx=no
+  loop: "{{ __lldp_current_mgn_addr_tlv.results | selectattr('stdout', '!=', '') | map(attribute='item') }}"
+  when: lldp_mgmt_addr_ipv4 | length == 0
 ...
